@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Email WebRTC Call App</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .section { margin-bottom: 20px; }
+        audio { display: block; margin-top: 10px; }
+        button { padding: 8px 15px; cursor: pointer; }
+        #hangup-btn { background-color: #ff4d4d; color: white; border: none; }
+    </style>
+</head>
+<body>
+
+    <h2>Browser Email-to-Email Calling</h2>
+
+    <!-- Setup Section -->
+    <div class="section" id="setup-section">
+        <h3>1. Enter Your Details</h3>
+        <input type="email" id="my-email" placeholder="Your email..."><br><br>
+        <input type="email" id="target-email" placeholder="Recipient's email..."><br><br>
+        <button onclick="initializeCallSession()">Prepare Call Link</button>
+    </div>
+
+    <!-- Call Control Section -->
+    <div class="section" id="call-section" style="display:none;">
+        <h3>2. Call Dashboard</h3>
+        <p>Your Email: <span id="display-my-email" style="font-weight:bold;"></span></p>
+        <p>Calling: <span id="display-target-email" style="font-weight:bold;"></span></p>
+        
+        <button id="call-btn" onclick="startCall()">Start Call</button>
+        <button id="hangup-btn" onclick="hangUpCall()" style="display:none;">Hang Up</button>
+    </div>
+
+    <div class="section">
+        <h3 id="call-status">Status: Idle</h3>
+        <audio id="remote-audio" autoplay controls></audio>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        let localStream;
+        let peerConnection;
+        let myEmail = "";
+        let targetEmail = "";
+
+        const rtcConfig = {
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        };
+
+        function initializeCallSession() {
+            myEmail = document.getElementById('my-email').value;
+            targetEmail = document.getElementById('target-email').value;
+            
+            if (!myEmail || !targetEmail) return alert("Please fill in both email fields!");
+
+            // Register our email session on the server
+            socket.emit('register_email', myEmail);
+
+            document.getElementById('display-my-email').innerText = myEmail;
+            document.getElementById('display-target-email').innerText = targetEmail;
+            document.getElementById('setup-section').style.display = 'none';
+            document.getElementById('call-section').style.display = 'block';
+            document.getElementById('call-status').innerText = "Status: Ready. Click 'Start Call'";
+        }
+
+        async function setupMedia() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            } catch (err) {
+                alert("Microphone access denied!");
+                console.error(err);
+            }
+        }
+
+        function createPeerConnection(remoteUser) {
+            peerConnection = new RTCPeerConnection(rtcConfig);
+
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+            peerConnection.ontrack = event => {
+                document.getElementById('remote-audio').srcObject = event.streams[0];
+                document.getElementById('call-status').innerText = "Status: Connected!";
+                document.getElementById('call-btn').style.display = 'none';
+                document.getElementById('hangup-btn').style.display = 'inline-block';
+            };
+
+            peerConnection.onicecandidate = event => {
+                if (event.candidate) {
+                    socket.emit('ice_candidate', { target_email: remoteUser, candidate: event.candidate });
+                }
+            };
+        }
+
+        async function startCall() {
+            await setupMedia();
+            createPeerConnection(targetEmail);
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+
+            socket.emit('call_user', {
+                caller_email: myEmail,
+                target_email: targetEmail,
+                offer: offer
+            });
+
+            document.getElementById('call-status').innerText = `Calling ${targetEmail}...`;
+        }
+
+        function hangUpCall() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('remote-audio').srcObject = null;
+            document.getElementById('call-status').innerText = "Status: Call Ended";
+            document.getElementById('hangup-btn').style.display = 'none';
+            document.getElementById('call-btn').style.display = 'inline-block';
+        }
+
+        // Socket Listeners
+        socket.on('incoming_call', async (data) => {
+            targetEmail = data.caller_email;
+            if (!confirm(`Incoming call from ${targetEmail}. Accept?`)) return;
+
+            await setupMedia();
+            createPeerConnection(targetEmail);
+
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            socket.emit('make_answer', { caller_email: targetEmail, answer: answer });
+            document.getElementById('call-status').innerText = `Connected to ${targetEmail}`;
+            document.getElementById('call-btn').style.display = 'none';
+            document.getElementById('hangup-btn').style.display = 'inline-block';
+        });
+
+        socket.on('call_answered', async (data) => {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        });
+
+        socket.on('ice_candidate', async (data) => {
+            if (peerConnection) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        socket.on('call_failed', (data) => {
+            alert(data.error);
+            document.getElementById('call-status').innerText = "Status: Call Failed (User offline)";
+        });
+    </script>
+</body>
+</html>
