@@ -4,3 +4,4 @@ gunicorn
 simple-websocket
 gevent
 gevent-websocket
+packaging
