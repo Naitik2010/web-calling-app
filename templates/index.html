@@ -2,144 +2,168 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Email WebRTC Call App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Email-to-Email Calling</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .section { margin-bottom: 20px; }
-        audio { display: block; margin-top: 10px; }
-        button { padding: 8px 15px; cursor: pointer; }
-        #hangup-btn { background-color: #ff4d4d; color: white; border: none; }
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f9; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input, button { padding: 10px; margin: 5px 0; font-size: 16px; }
+        button { cursor: pointer; background: #007BFF; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        #hangup-btn { background: #dc3545; }
+        #hangup-btn:hover { background: #bd2130; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <h2>Browser Email-to-Email Calling</h2>
+    <h1>Browser Email-to-Email Calling</h1>
 
-    <!-- Setup Section -->
-    <div class="section" id="setup-section">
-        <h3>1. Enter Your Details</h3>
-        <input type="email" id="my-email" placeholder="Your email..."><br><br>
-        <input type="email" id="target-email" placeholder="Recipient's email..."><br><br>
-        <button onclick="initializeCallSession()">Prepare Call Link</button>
+    <!-- Registration Section -->
+    <div id="register-section" class="card">
+        <h3>1. Register Your Email</h3>
+        <input type="email" id="email-input" placeholder="Enter your email address">
+        <br>
+        <button onclick="registerEmail()">Register</button>
     </div>
 
-    <!-- Call Control Section -->
-    <div class="section" id="call-section" style="display:none;">
+    <!-- Call Dashboard Section -->
+    <div id="call-section" class="card hidden">
         <h3>2. Call Dashboard</h3>
-        <p>Your Email: <span id="display-my-email" style="font-weight:bold;"></span></p>
-        <p>Calling: <span id="display-target-email" style="font-weight:bold;"></span></p>
+        <p>Your Email: <b id="my-email-display"></b></p>
         
-        <button id="call-btn" onclick="startCall()">Start Call</button>
-        <button id="hangup-btn" onclick="hangUpCall()" style="display:none;">Hang Up</button>
+        <input type="email" id="target-email-input" placeholder="Enter recipient's email">
+        <br>
+        <button id="start-call-btn" onclick="startCall()">Start Call</button>
+        <button id="hangup-btn" class="hidden" onclick="hangUpCall()">Hang Up</button>
+
+        <div style="margin-top: 20px;">
+            <audio id="remote-audio" autoplay></audio>
+        </div>
     </div>
 
-    <div class="section">
-        <h3 id="call-status">Status: Idle</h3>
-        <audio id="remote-audio" autoplay controls></audio>
-    </div>
+    <!-- Hidden Ringtone Audio -->
+    <audio id="ringtone" loop>
+        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+    </audio>
 
+    <!-- Socket.IO Client Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
-        let localStream;
-        let peerConnection;
         let myEmail = "";
         let targetEmail = "";
+        let peerConnection = "";
+        let localStream;
 
-        const rtcConfig = {
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        const iceServers = {
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
         };
 
-        function initializeCallSession() {
-            myEmail = document.getElementById('my-email').value;
-            targetEmail = document.getElementById('target-email').value;
-            
-            if (!myEmail || !targetEmail) return alert("Please fill in both email fields!");
+        const ringtone = document.getElementById('ringtone');
 
-            // Register our email session on the server
+        function registerEmail() {
+            myEmail = document.getElementById('email-input').value.trim();
+            if (!myEmail) {
+                alert("Please enter a valid email.");
+                return;
+            }
             socket.emit('register_email', myEmail);
+            document.getElementById('my-email-display').innerText = myEmail;
+            document.getElementById('register-section').classList.add('hidden');
+            document.getElementById('call-section').classList.remove('hidden');
 
-            document.getElementById('display-my-email').innerText = myEmail;
-            document.getElementById('display-target-email').innerText = targetEmail;
-            document.getElementById('setup-section').style.display = 'none';
-            document.getElementById('call-section').style.display = 'block';
-            document.getElementById('call-status').innerText = "Status: Ready. Click 'Start Call'";
+            // Request browser notification permissions for background alerts
+            if (Notification.permission !== "granted") {
+                Notification.requestPermission();
+            }
         }
 
         async function setupMedia() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
             } catch (err) {
-                alert("Microphone access denied!");
-                console.error(err);
+                console.error("Microphone access denied:", err);
+                alert("Microphone access is required for calls.");
             }
         }
 
-        function createPeerConnection(remoteUser) {
-            peerConnection = new RTCPeerConnection(rtcConfig);
+        async function createPeerConnection(receiverEmail) {
+            peerConnection = new RTCPeerConnection(iceServers);
 
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            if (localStream) {
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            }
 
-            peerConnection.ontrack = event => {
-                document.getElementById('remote-audio').srcObject = event.streams[0];
-                document.getElementById('call-status').innerText = "Status: Connected!";
-                document.getElementById('call-btn').style.display = 'none';
-                document.getElementById('hangup-btn').style.display = 'inline-block';
+            peerConnection.ontrack = (event) => {
+                const remoteAudio = document.getElementById('remote-audio');
+                remoteAudio.srcObject = event.streams[0];
             };
 
-            peerConnection.onicecandidate = event => {
+            peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
-                    socket.emit('ice_candidate', { target_email: remoteUser, candidate: event.candidate });
+                    socket.emit('ice_candidate', {
+                        target_email: receiverEmail,
+                        candidate: event.candidate
+                    });
                 }
             };
         }
 
         async function startCall() {
+            targetEmail = document.getElementById('target-email-input').value.trim();
+            if (!targetEmail) {
+                alert("Enter target email to call.");
+                return;
+            }
+
             await setupMedia();
-            createPeerConnection(targetEmail);
+            await createPeerConnection(targetEmail);
 
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
 
             socket.emit('call_user', {
-                caller_email: myEmail,
                 target_email: targetEmail,
+                caller_email: myEmail,
                 offer: offer
             });
 
-            document.getElementById('call-status').innerText = `Calling ${targetEmail}...`;
+            document.getElementById('start-call-btn').classList.add('hidden');
+            document.getElementById('hangup-btn').classList.remove('hidden');
         }
 
-        function hangUpCall() {
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            document.getElementById('remote-audio').srcObject = null;
-            document.getElementById('call-status').innerText = "Status: Call Ended";
-            document.getElementById('hangup-btn').style.display = 'none';
-            document.getElementById('call-btn').style.display = 'inline-block';
-        }
-
-        // Socket Listeners
         socket.on('incoming_call', async (data) => {
-            targetEmail = data.caller_email;
-            if (!confirm(`Incoming call from ${targetEmail}. Accept?`)) return;
+            ringtone.play().catch(err => console.log("Audio autoplay restricted:", err));
 
-            await setupMedia();
-            createPeerConnection(targetEmail);
+            if (Notification.permission === "granted") {
+                new Notification("Incoming Call", { body: `Call from ${data.caller_email}` });
+            }
 
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
+            let accept = confirm(`Incoming call from ${data.caller_email}. Click OK to Answer.`);
+            
+            ringtone.pause();
+            ringtone.currentTime = 0;
 
-            socket.emit('make_answer', { caller_email: targetEmail, answer: answer });
-            document.getElementById('call-status').innerText = `Connected to ${targetEmail}`;
-            document.getElementById('call-btn').style.display = 'none';
-            document.getElementById('hangup-btn').style.display = 'inline-block';
+            if (accept) {
+                targetEmail = data.caller_email;
+                await setupMedia();
+                await createPeerConnection(targetEmail);
+
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                socket.emit('make_answer', {
+                    caller_email: targetEmail,
+                    answer: answer
+                });
+
+                document.getElementById('start-call-btn').classList.add('hidden');
+                document.getElementById('hangup-btn').classList.remove('hidden');
+            } else {
+                socket.emit('hang_up', { target_email: data.caller_email });
+            }
         });
 
         socket.on('call_answered', async (data) => {
@@ -154,8 +178,40 @@
 
         socket.on('call_failed', (data) => {
             alert(data.error);
-            document.getElementById('call-status').innerText = "Status: Call Failed (User offline)";
+            resetCallUI();
         });
+
+        socket.on('call_ended', () => {
+            terminateCallLocally();
+            alert("The call was ended by the other user.");
+        });
+
+        function hangUpCall() {
+            if (targetEmail) {
+                socket.emit('hang_up', { target_email: targetEmail });
+            }
+            terminateCallLocally();
+        }
+
+        function terminateCallLocally() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            ringtone.pause();
+            ringtone.currentTime = 0;
+            resetCallUI();
+        }
+
+        function resetCallUI() {
+            document.getElementById('start-call-btn').classList.remove('hidden');
+            document.getElementById('hangup-btn').classList.add('hidden');
+            targetEmail = "";
+        }
     </script>
 </body>
 </html>

@@ -24,7 +24,6 @@ def handle_call(data):
     
     target_sid = active_users.get(target_email)
     if target_sid:
-        # Forward the WebRTC call offer to the target user
         emit('incoming_call', {'caller_email': caller_email, 'offer': offer}, room=target_sid)
     else:
         emit('call_failed', {'error': 'User not online or email not found.'})
@@ -45,5 +44,20 @@ def handle_ice(data):
     if target_sid:
         emit('ice_candidate', {'candidate': candidate}, room=target_sid)
 
+@socketio.on('hang_up')
+def handle_hang_up(data):
+    target_email = data.get('target_email')
+    target_sid = active_users.get(target_email)
+    if target_sid:
+        emit('call_ended', room=target_sid)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    for email, sid in list(active_users.items()):
+        if sid == request.sid:
+            del active_users[email]
+            print(f"Disconnected & Removed: {email}")
+            break
+
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=5000)
