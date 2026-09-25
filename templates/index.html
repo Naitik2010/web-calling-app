@@ -53,8 +53,9 @@
         const socket = io();
         let myEmail = "";
         let targetEmail = "";
-        let peerConnection = "";
-        let localStream;
+        let peerConnection = null;
+        let localStream = null;
+        let iceCandidateQueue = [];
 
         const iceServers = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
@@ -73,7 +74,6 @@
             document.getElementById('register-section').classList.add('hidden');
             document.getElementById('call-section').classList.remove('hidden');
 
-            // Request browser notification permissions for background alerts
             if (Notification.permission !== "granted") {
                 Notification.requestPermission();
             }
@@ -81,7 +81,9 @@
 
         async function setupMedia() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                if (!localStream) {
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                }
             } catch (err) {
                 console.error("Microphone access denied:", err);
                 alert("Microphone access is required for calls.");
@@ -89,7 +91,10 @@
         }
 
         async function createPeerConnection(receiverEmail) {
+            if (peerConnection) return;
+            
             peerConnection = new RTCPeerConnection(iceServers);
+            iceCandidateQueue = [];
 
             if (localStream) {
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
@@ -98,6 +103,7 @@
             peerConnection.ontrack = (event) => {
                 const remoteAudio = document.getElementById('remote-audio');
                 remoteAudio.srcObject = event.streams[0];
+                remoteAudio.play().catch(err => console.log("Audio play blocked/failed:", err));
             };
 
             peerConnection.onicecandidate = (event) => {
@@ -108,6 +114,17 @@
                     });
                 }
             };
+        }
+
+        async function flushIceQueue() {
+            while (iceCandidateQueue.length > 0) {
+                const candidate = iceCandidateQueue.shift();
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                    console.error("Error adding queued ICE candidate", e);
+                }
+            }
         }
 
         async function startCall() {
@@ -151,6 +168,8 @@
                 await createPeerConnection(targetEmail);
 
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+                await flushIceQueue();
+
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
 
@@ -167,23 +186,31 @@
         });
 
         socket.on('call_answered', async (data) => {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            if (peerConnection) {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                await flushIceQueue();
+            }
         });
 
         socket.on('ice_candidate', async (data) => {
-            if (peerConnection) {
-                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } catch (e) {
+                    console.error("Error adding received ICE candidate", e);
+                }
+            } else {
+                iceCandidateQueue.push(data.candidate);
             }
         });
 
         socket.on('call_failed', (data) => {
             alert(data.error);
-            resetCallUI();
+            terminateCallLocally();
         });
 
         socket.on('call_ended', () => {
             terminateCallLocally();
-            alert("The call was ended by the other user.");
         });
 
         function hangUpCall() {
@@ -198,10 +225,6 @@
                 peerConnection.close();
                 peerConnection = null;
             }
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
             ringtone.pause();
             ringtone.currentTime = 0;
             resetCallUI();
@@ -211,6 +234,7 @@
             document.getElementById('start-call-btn').classList.remove('hidden');
             document.getElementById('hangup-btn').classList.add('hidden');
             targetEmail = "";
+            iceCandidateQueue = [];
         }
     </script>
 </body>
