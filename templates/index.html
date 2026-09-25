@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Browser Email-to-Email Calling</title>
+    <title>Browser ID Calling</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f9; color: #333; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
@@ -13,26 +13,27 @@
         #hangup-btn { background: #dc3545; }
         #hangup-btn:hover { background: #bd2130; }
         .hidden { display: none; }
+        .status { font-weight: bold; color: green; }
     </style>
 </head>
 <body>
 
-    <h1>Browser Email-to-Email Calling</h1>
+    <h1>Browser ID Calling App</h1>
 
     <!-- Registration Section -->
     <div id="register-section" class="card">
-        <h3>1. Register Your Email</h3>
-        <input type="email" id="email-input" placeholder="Enter your email address">
+        <h3>1. Enter Your ID</h3>
+        <input type="text" id="id-input" placeholder="e.g. 456">
         <br>
-        <button onclick="registerEmail()">Register</button>
+        <button onclick="registerID()">Register ID</button>
     </div>
 
     <!-- Call Dashboard Section -->
     <div id="call-section" class="card hidden">
         <h3>2. Call Dashboard</h3>
-        <p>Your Email: <b id="my-email-display"></b></p>
+        <p>Your ID: <b id="my-id-display"></b> <span class="status">● Online</span></p>
         
-        <input type="email" id="target-email-input" placeholder="Enter recipient's email">
+        <input type="text" id="target-id-input" placeholder="Enter recipient's ID (e.g. 121)">
         <br>
         <button id="start-call-btn" onclick="startCall()">Start Call</button>
         <button id="hangup-btn" class="hidden" onclick="hangUpCall()">Hang Up</button>
@@ -51,8 +52,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
-        let myEmail = "";
-        let targetEmail = "";
+        let myId = "";
+        let targetId = "";
         let peerConnection = null;
         let localStream = null;
         let iceCandidateQueue = [];
@@ -63,22 +64,22 @@
 
         const ringtone = document.getElementById('ringtone');
 
-        // Automatically re-register email if connection drops and reconnects
+        // Automatically re-register ID if connection drops and reconnects
         socket.on('connect', () => {
-            if (myEmail) {
-                socket.emit('register_email', myEmail);
-                console.log("Re-registered email on reconnect:", myEmail);
+            if (myId) {
+                socket.emit('register_id', myId);
+                console.log("Re-registered ID on reconnect:", myId);
             }
         });
 
-        function registerEmail() {
-            myEmail = document.getElementById('email-input').value.trim();
-            if (!myEmail) {
-                alert("Please enter a valid email.");
+        function registerID() {
+            myId = document.getElementById('id-input').value.trim();
+            if (!myId) {
+                alert("Please enter a valid ID.");
                 return;
             }
-            socket.emit('register_email', myEmail);
-            document.getElementById('my-email-display').innerText = myEmail;
+            socket.emit('register_id', myId);
+            document.getElementById('my-id-display').innerText = myId;
             document.getElementById('register-section').classList.add('hidden');
             document.getElementById('call-section').classList.remove('hidden');
 
@@ -98,7 +99,7 @@
             }
         }
 
-        async function createPeerConnection(receiverEmail) {
+        async function createPeerConnection(receiverId) {
             if (peerConnection) return;
             
             peerConnection = new RTCPeerConnection(iceServers);
@@ -117,7 +118,7 @@
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
                     socket.emit('ice_candidate', {
-                        target_email: receiverEmail,
+                        target_id: receiverId,
                         candidate: event.candidate
                     });
                 }
@@ -136,9 +137,9 @@
         }
 
         async function startCall() {
-            targetEmail = document.getElementById('target-email-input').value.trim();
-            if (!targetEmail) {
-                alert("Enter target email to call.");
+            targetId = document.getElementById('target-id-input').value.trim();
+            if (!targetId) {
+                alert("Enter target ID to call.");
                 return;
             }
 
@@ -148,14 +149,14 @@
                 return;
             }
 
-            await createPeerConnection(targetEmail);
+            await createPeerConnection(targetId);
 
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
 
             socket.emit('call_user', {
-                target_email: targetEmail,
-                caller_email: myEmail,
+                target_id: targetId,
+                caller_id: myId,
                 offer: offer
             });
 
@@ -167,18 +168,18 @@
             ringtone.play().catch(err => console.log("Audio autoplay restricted:", err));
 
             if (Notification.permission === "granted") {
-                new Notification("Incoming Call", { body: `Call from ${data.caller_email}` });
+                new Notification("Incoming Call", { body: `Call from ID: ${data.caller_id}` });
             }
 
-            let accept = confirm(`Incoming call from ${data.caller_email}. Click OK to Answer.`);
+            let accept = confirm(`Incoming call from ID: ${data.caller_id}. Click OK to Answer.`);
             
             ringtone.pause();
             ringtone.currentTime = 0;
 
             if (accept) {
-                targetEmail = data.caller_email;
+                targetId = data.caller_id;
                 await setupMedia();
-                await createPeerConnection(targetEmail);
+                await createPeerConnection(targetId);
 
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
                 await flushIceQueue();
@@ -187,14 +188,14 @@
                 await peerConnection.setLocalDescription(answer);
 
                 socket.emit('make_answer', {
-                    caller_email: targetEmail,
+                    caller_id: targetId,
                     answer: answer
                 });
 
                 document.getElementById('start-call-btn').classList.add('hidden');
                 document.getElementById('hangup-btn').classList.remove('hidden');
             } else {
-                socket.emit('hang_up', { target_email: data.caller_email });
+                socket.emit('hang_up', { target_id: data.caller_id });
             }
         });
 
@@ -227,8 +228,8 @@
         });
 
         function hangUpCall() {
-            if (targetEmail) {
-                socket.emit('hang_up', { target_email: targetEmail });
+            if (targetId) {
+                socket.emit('hang_up', { target_id: targetId });
             }
             terminateCallLocally();
         }
@@ -246,7 +247,7 @@
         function resetCallUI() {
             document.getElementById('start-call-btn').classList.remove('hidden');
             document.getElementById('hangup-btn').classList.add('hidden');
-            targetEmail = "";
+            targetId = "";
             iceCandidateQueue = [];
         }
     </script>
