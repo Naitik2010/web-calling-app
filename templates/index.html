@@ -12,8 +12,11 @@
         button:hover { background: #0056b3; }
         #hangup-btn { background: #dc3545; }
         #hangup-btn:hover { background: #bd2130; }
+        #answer-btn { background: #28a745; font-size: 18px; padding: 12px 20px; }
+        #answer-btn:hover { background: #218838; }
         .hidden { display: none; }
         .status { font-weight: bold; color: green; }
+        #incoming-container { background: #e8f5e9; border: 2px dashed #28a745; padding: 15px; border-radius: 6px; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -38,6 +41,13 @@
         <button id="start-call-btn" onclick="startCall()">Start Call</button>
         <button id="hangup-btn" class="hidden" onclick="hangUpCall()">Hang Up</button>
 
+        <!-- Incoming Call UI Banner -->
+        <div id="incoming-container" class="hidden">
+            <p>Incoming call from ID: <b id="caller-id-display"></b></p>
+            <button id="answer-btn" onclick="acceptCall()">Accept Call</button>
+            <button id="hangup-btn-incoming" onclick="declineCall()" style="background: #dc3545;">Decline</button>
+        </div>
+
         <div style="margin-top: 20px;">
             <audio id="remote-audio" autoplay></audio>
         </div>
@@ -54,6 +64,7 @@
         const socket = io();
         let myId = "";
         let targetId = "";
+        let pendingOffer = null;
         let peerConnection = null;
         let localStream = null;
         let iceCandidateQueue = [];
@@ -64,11 +75,9 @@
 
         const ringtone = document.getElementById('ringtone');
 
-        // Automatically re-register ID if connection drops and reconnects
         socket.on('connect', () => {
             if (myId) {
                 socket.emit('register_id', myId);
-                console.log("Re-registered ID on reconnect:", myId);
             }
         });
 
@@ -165,39 +174,51 @@
         }
 
         socket.on('incoming_call', async (data) => {
+            pendingOffer = data.offer;
+            targetId = data.caller_id;
+
             ringtone.play().catch(err => console.log("Audio autoplay restricted:", err));
 
             if (Notification.permission === "granted") {
                 new Notification("Incoming Call", { body: `Call from ID: ${data.caller_id}` });
             }
 
-            let accept = confirm(`Incoming call from ID: ${data.caller_id}. Click OK to Answer.`);
-            
+            // Show interactive on-screen call banner instead of blockable confirm()
+            document.getElementById('caller-id-display').innerText = data.caller_id;
+            document.getElementById('incoming-container').classList.remove('hidden');
+            document.getElementById('start-call-btn').classList.add('hidden');
+        });
+
+        async function acceptCall() {
             ringtone.pause();
             ringtone.currentTime = 0;
+            document.getElementById('incoming-container').classList.add('hidden');
 
-            if (accept) {
-                targetId = data.caller_id;
-                await setupMedia();
-                await createPeerConnection(targetId);
+            await setupMedia();
+            await createPeerConnection(targetId);
 
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
-                await flushIceQueue();
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(pendingOffer));
+            await flushIceQueue();
 
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
 
-                socket.emit('make_answer', {
-                    caller_id: targetId,
-                    answer: answer
-                });
+            socket.emit('make_answer', {
+                caller_id: targetId,
+                answer: answer
+            });
 
-                document.getElementById('start-call-btn').classList.add('hidden');
-                document.getElementById('hangup-btn').classList.remove('hidden');
-            } else {
-                socket.emit('hang_up', { target_id: data.caller_id });
-            }
-        });
+            document.getElementById('hangup-btn').classList.remove('hidden');
+        }
+
+        function declineCall() {
+            ringtone.pause();
+            ringtone.currentTime = 0;
+            document.getElementById('incoming-container').classList.add('hidden');
+            document.getElementById('start-call-btn').classList.remove('hidden');
+            socket.emit('hang_up', { target_id: targetId });
+            targetId = "";
+        }
 
         socket.on('call_answered', async (data) => {
             if (peerConnection) {
@@ -247,7 +268,9 @@
         function resetCallUI() {
             document.getElementById('start-call-btn').classList.remove('hidden');
             document.getElementById('hangup-btn').classList.add('hidden');
+            document.getElementById('incoming-container').classList.add('hidden');
             targetId = "";
+            pendingOffer = null;
             iceCandidateQueue = [];
         }
     </script>
