@@ -134,7 +134,13 @@
                 return;
             }
 
+    // Ensure microphone access works before attempting to call
             await setupMedia();
+            if (!localStream) {
+                alert("Cannot start call: Microphone access is required.");
+                return;
+            }
+
             await createPeerConnection(targetEmail);
 
             const offer = await peerConnection.createOffer();
