@@ -63,6 +63,14 @@
 
         const ringtone = document.getElementById('ringtone');
 
+        // Automatically re-register email if connection drops and reconnects
+        socket.on('connect', () => {
+            if (myEmail) {
+                socket.emit('register_email', myEmail);
+                console.log("Re-registered email on reconnect:", myEmail);
+            }
+        });
+
         function registerEmail() {
             myEmail = document.getElementById('email-input').value.trim();
             if (!myEmail) {
@@ -134,7 +142,6 @@
                 return;
             }
 
-    // Ensure microphone access works before attempting to call
             await setupMedia();
             if (!localStream) {
                 alert("Cannot start call: Microphone access is required.");
