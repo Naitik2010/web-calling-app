@@ -1,11 +1,11 @@
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
+import os
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Maps user IDs to socket IDs
-# Example: {"456": "abc123socketid"}
+# Maps user IDs to their current Socket.IO connection
 active_users = {}
 
 
@@ -24,27 +24,39 @@ def handle_register(user_id):
         })
         return
 
-    # Check if this ID is already registered on another device
+    # Check whether this ID is already being used
     if user_id in active_users:
         existing_sid = active_users[user_id]
 
-        # Same socket registering again -> allow it
+        # Same device/socket registering the same ID again
         if existing_sid == request.sid:
-            emit('registration_success')
+            emit('registration_success', {
+                'user_id': user_id
+            })
             return
 
-        # ID is already being used by another connected device
+        # Another device is already using this ID
         emit('registration_failed', {
             'error': f'ID {user_id} is already online on another device.'
         })
         return
 
-    # Register this ID
+    # If this socket was previously registered with another ID,
+    # remove the old ID first.
+    for old_id, sid in list(active_users.items()):
+        if sid == request.sid:
+            del active_users[old_id]
+            print(f"Changed ID: removed {old_id}")
+            break
+
+    # Register the new ID
     active_users[user_id] = request.sid
 
     print(f"Registered ID: {user_id} -> {request.sid}")
 
-    emit('registration_success')
+    emit('registration_success', {
+        'user_id': user_id
+    })
 
 
 @socketio.on('call_user')
@@ -112,7 +124,6 @@ def handle_hang_up(data):
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    # Find the ID belonging to this socket and remove it
     for user_id, sid in list(active_users.items()):
         if sid == request.sid:
             del active_users[user_id]
@@ -123,8 +134,6 @@ def handle_disconnect():
 
             break
 
-
-import os
 
 if __name__ == '__main__':
     socketio.run(

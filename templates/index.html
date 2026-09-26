@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Browser ID Calling</title>
 
     <style>
@@ -21,7 +22,8 @@
             margin-bottom: 20px;
         }
 
-        input, button {
+        input,
+        button {
             padding: 12px;
             margin: 6px 0;
             font-size: 16px;
@@ -117,23 +119,29 @@
 
     <h1>Browser ID Calling App</h1>
 
-    <!-- Registration Section -->
+    <!-- Registration -->
     <div id="register-section" class="card">
+
         <h3>1. Enter Your ID</h3>
 
         <input
             type="text"
             id="id-input"
             placeholder="e.g. 456"
+            autocomplete="off"
         >
 
-        <button onclick="registerID()">
+        <button
+            id="register-btn"
+            onclick="registerID()"
+        >
             Register ID
         </button>
+
     </div>
 
 
-    <!-- Call Dashboard Section -->
+    <!-- Call Dashboard -->
     <div id="call-section" class="card hidden">
 
         <h3>2. Call Dashboard</h3>
@@ -178,7 +186,7 @@
     </div>
 
 
-    <!-- Incoming Call Overlay -->
+    <!-- Incoming Call -->
     <div id="incoming-overlay" class="hidden">
 
         <div class="incoming-box">
@@ -216,7 +224,7 @@
     </div>
 
 
-    <!-- Hidden Ringtone -->
+    <!-- Ringtone -->
     <audio id="ringtone" loop>
         <source
             src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
@@ -239,6 +247,10 @@
         let localStream = null;
         let iceCandidateQueue = [];
 
+        let registered = false;
+        let registrationInProgress = false;
+
+
         const iceServers = {
             iceServers: [
                 {
@@ -247,7 +259,9 @@
             ]
         };
 
-        const ringtone = document.getElementById('ringtone');
+
+        const ringtone =
+            document.getElementById('ringtone');
 
 
         /*
@@ -256,36 +270,108 @@
 
         socket.on('connect', () => {
 
-            // If the page reconnects, automatically
-            // try to register the same ID again.
+            console.log("Connected to server.");
+
+            /*
+             * If the connection was lost and restored,
+             * automatically register the current ID again.
+             */
+
             if (myId) {
-                socket.emit('register_id', myId);
+
+                console.log(
+                    "Re-registering ID:",
+                    myId
+                );
+
+                socket.emit(
+                    'register_id',
+                    myId
+                );
+
             }
 
         });
 
 
+        socket.on('disconnect', () => {
+
+            console.log(
+                "Disconnected from server."
+            );
+
+            registered = false;
+
+        });
+
+
         /*
-         * REGISTRATION
+         * REGISTER ID
          */
 
         function registerID() {
 
-            const enteredId =
-                document.getElementById('id-input').value.trim();
-
-            if (!enteredId) {
-
-                alert("Please enter a valid ID.");
-
+            if (registrationInProgress) {
                 return;
             }
 
-            // Don't immediately switch to dashboard.
-            // We wait for the server to confirm that
-            // the ID is available.
+            const input =
+                document.getElementById(
+                    'id-input'
+                );
 
-            socket.emit('register_id', enteredId);
+            const enteredId =
+                input.value.trim();
+
+
+            if (!enteredId) {
+
+                alert(
+                    "Please enter a valid ID."
+                );
+
+                input.focus();
+
+                return;
+
+            }
+
+
+            if (!socket.connected) {
+
+                alert(
+                    "Not connected to the server. Please wait a moment and try again."
+                );
+
+                return;
+
+            }
+
+
+            registrationInProgress = true;
+
+
+            const button =
+                document.getElementById(
+                    'register-btn'
+                );
+
+            button.disabled = true;
+            button.innerText = "Checking...";
+
+
+            /*
+             * IMPORTANT:
+             * We do NOT change the UI yet.
+             *
+             * The server must first confirm that
+             * this ID is available.
+             */
+
+            socket.emit(
+                'register_id',
+                enteredId
+            );
 
         }
 
@@ -294,43 +380,117 @@
          * REGISTRATION SUCCESS
          */
 
-        socket.on('registration_success', () => {
+        socket.on(
+            'registration_success',
+            (data) => {
 
-            myId =
-                document.getElementById('id-input').value.trim();
+                registrationInProgress = false;
+                registered = true;
 
-            document.getElementById('my-id-display').innerText =
-                myId;
 
-            document
-                .getElementById('register-section')
-                .classList.add('hidden');
+                const button =
+                    document.getElementById(
+                        'register-btn'
+                    );
 
-            document
-                .getElementById('call-section')
-                .classList.remove('hidden');
+                button.disabled = false;
+                button.innerText =
+                    "Register ID";
 
-        });
+
+                /*
+                 * Server sends back the ID it actually
+                 * registered.
+                 */
+
+                myId =
+                    data.user_id;
+
+
+                document
+                    .getElementById(
+                        'id-input'
+                    )
+                    .value =
+                    myId;
+
+
+                document
+                    .getElementById(
+                        'my-id-display'
+                    )
+                    .innerText =
+                    myId;
+
+
+                document
+                    .getElementById(
+                        'register-section'
+                    )
+                    .classList
+                    .add('hidden');
+
+
+                document
+                    .getElementById(
+                        'call-section'
+                    )
+                    .classList
+                    .remove('hidden');
+
+
+                console.log(
+                    "Successfully registered:",
+                    myId
+                );
+
+            }
+        );
 
 
         /*
          * REGISTRATION FAILED
          */
 
-        socket.on('registration_failed', (data) => {
+        socket.on(
+            'registration_failed',
+            (data) => {
 
-            alert(data.error);
+                registrationInProgress = false;
 
-            // Stay on registration screen.
-            document
-                .getElementById('register-section')
-                .classList.remove('hidden');
 
-            document
-                .getElementById('call-section')
-                .classList.add('hidden');
+                const button =
+                    document.getElementById(
+                        'register-btn'
+                    );
 
-        });
+                button.disabled = false;
+                button.innerText =
+                    "Register ID";
+
+
+                /*
+                 * IMPORTANT:
+                 *
+                 * We DON'T reload the page.
+                 *
+                 * The user can simply type another ID
+                 * and press Register ID again.
+                 */
+
+                alert(data.error);
+
+
+                const input =
+                    document.getElementById(
+                        'id-input'
+                    );
+
+                input.focus();
+                input.select();
+
+            }
+        );
 
 
         /*
@@ -344,19 +504,22 @@
                 if (!localStream) {
 
                     localStream =
-                        await navigator.mediaDevices.getUserMedia({
+                        await navigator
+                            .mediaDevices
+                            .getUserMedia({
 
-                            audio: {
-                                echoCancellation: true,
-                                noiseSuppression: true,
-                                autoGainControl: true
-                            },
+                                audio: {
+                                    echoCancellation: true,
+                                    noiseSuppression: true,
+                                    autoGainControl: true
+                                },
 
-                            video: false
+                                video: false
 
-                        });
+                            });
 
                 }
+
 
                 localStream
                     .getAudioTracks()
@@ -385,16 +548,23 @@
 
 
         /*
-         * PEER CONNECTION
+         * CREATE PEER CONNECTION
          */
 
-        async function createPeerConnection(receiverId) {
+        async function createPeerConnection(
+            receiverId
+        ) {
 
-            if (peerConnection)
+            if (peerConnection) {
                 return;
+            }
+
 
             peerConnection =
-                new RTCPeerConnection(iceServers);
+                new RTCPeerConnection(
+                    iceServers
+                );
+
 
             iceCandidateQueue = [];
 
@@ -415,40 +585,45 @@
             }
 
 
-            peerConnection.ontrack = (event) => {
+            peerConnection.ontrack =
+                (event) => {
 
-                const remoteAudio =
-                    document.getElementById('remote-audio');
+                    const remoteAudio =
+                        document.getElementById(
+                            'remote-audio'
+                        );
 
-                if (
-                    remoteAudio.srcObject !==
-                    event.streams[0]
-                ) {
 
-                    remoteAudio.srcObject =
-                        event.streams[0];
+                    if (
+                        remoteAudio.srcObject !==
+                        event.streams[0]
+                    ) {
 
-                    remoteAudio
-                        .play()
-                        .then(() => {
+                        remoteAudio.srcObject =
+                            event.streams[0];
 
-                            console.log(
-                                "Remote audio playing successfully"
-                            );
 
-                        })
-                        .catch(err => {
+                        remoteAudio
+                            .play()
+                            .then(() => {
 
-                            console.log(
-                                "iOS Safari audio play restriction caught:",
-                                err
-                            );
+                                console.log(
+                                    "Remote audio playing successfully"
+                                );
 
-                        });
+                            })
+                            .catch(err => {
 
-                }
+                                console.log(
+                                    "Audio play restriction:",
+                                    err
+                                );
 
-            };
+                            });
+
+                    }
+
+                };
 
 
             peerConnection.onicecandidate =
@@ -459,8 +634,11 @@
                         socket.emit(
                             'ice_candidate',
                             {
-                                target_id: receiverId,
-                                candidate: event.candidate
+                                target_id:
+                                    receiverId,
+
+                                candidate:
+                                    event.candidate
                             }
                         );
 
@@ -472,7 +650,7 @@
 
 
         /*
-         * ICE QUEUE
+         * FLUSH ICE QUEUE
          */
 
         async function flushIceQueue() {
@@ -484,11 +662,14 @@
                 const candidate =
                     iceCandidateQueue.shift();
 
+
                 try {
 
                     await peerConnection
                         .addIceCandidate(
-                            new RTCIceCandidate(candidate)
+                            new RTCIceCandidate(
+                                candidate
+                            )
                         );
 
                 }
@@ -515,7 +696,9 @@
 
             targetId =
                 document
-                    .getElementById('target-id-input')
+                    .getElementById(
+                        'target-id-input'
+                    )
                     .value
                     .trim();
 
@@ -537,7 +720,7 @@
             if (!localStream) {
 
                 alert(
-                    "Cannot start call: Microphone permission was blocked by iOS."
+                    "Cannot start call: Microphone permission was blocked."
                 );
 
                 return;
@@ -545,15 +728,20 @@
             }
 
 
-            await createPeerConnection(targetId);
+            await createPeerConnection(
+                targetId
+            );
 
 
             const offer =
-                await peerConnection.createOffer();
+                await peerConnection
+                    .createOffer();
 
 
             await peerConnection
-                .setLocalDescription(offer);
+                .setLocalDescription(
+                    offer
+                );
 
 
             socket.emit(
@@ -567,13 +755,19 @@
 
 
             document
-                .getElementById('start-call-btn')
-                .classList.add('hidden');
+                .getElementById(
+                    'start-call-btn'
+                )
+                .classList
+                .add('hidden');
 
 
             document
-                .getElementById('hangup-btn')
-                .classList.remove('hidden');
+                .getElementById(
+                    'hangup-btn'
+                )
+                .classList
+                .remove('hidden');
 
         }
 
@@ -588,6 +782,7 @@
 
                 pendingOffer =
                     data.offer;
+
 
                 targetId =
                     data.caller_id;
@@ -630,7 +825,6 @@
         async function acceptCall() {
 
             ringtone.pause();
-
             ringtone.currentTime = 0;
 
 
@@ -662,11 +856,14 @@
 
 
             const answer =
-                await peerConnection.createAnswer();
+                await peerConnection
+                    .createAnswer();
 
 
             await peerConnection
-                .setLocalDescription(answer);
+                .setLocalDescription(
+                    answer
+                );
 
 
             socket.emit(
@@ -703,7 +900,6 @@
         function declineCall() {
 
             ringtone.pause();
-
             ringtone.currentTime = 0;
 
 
@@ -749,6 +945,7 @@
 
                     boxAudioUnlock();
 
+
                     await flushIceQueue();
 
                 }
@@ -767,6 +964,7 @@
                 document.getElementById(
                     'remote-audio'
                 );
+
 
             remoteAudio
                 .play()
@@ -819,8 +1017,9 @@
 
                 else {
 
-                    iceCandidateQueue
-                        .push(data.candidate);
+                    iceCandidateQueue.push(
+                        data.candidate
+                    );
 
                 }
 
@@ -875,13 +1074,14 @@
 
             }
 
+
             terminateCallLocally();
 
         }
 
 
         /*
-         * TERMINATE CALL LOCALLY
+         * TERMINATE CALL
          */
 
         function terminateCallLocally() {
@@ -896,8 +1096,8 @@
 
 
             ringtone.pause();
-
             ringtone.currentTime = 0;
+
 
             resetCallUI();
 
@@ -935,9 +1135,7 @@
 
 
             targetId = "";
-
             pendingOffer = null;
-
             iceCandidateQueue = [];
 
         }
