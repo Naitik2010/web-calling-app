@@ -49,7 +49,7 @@
     <div id="register-section" class="card">
         <h3>1. Enter Your ID</h3>
         <input type="text" id="id-input" placeholder="e.g. 456">
-        <button onclick="registerID()">Register ID</button>
+        <button onclick="registerID()">Register ID & Unlock Audio</button>
     </div>
 
     <!-- Call Dashboard Section -->
@@ -62,8 +62,7 @@
         <button id="hangup-btn" class="hidden" onclick="hangUpCall()">Hang Up</button>
 
         <div style="margin-top: 20px;">
-            <!-- playsinline and controls added to force iOS Safari to render and route audio properly -->
-            <audio id="remote-audio" autoplay playsinline controls style="width:100%;"></audio>
+            <audio id="remote-audio" autoplay playsinline></audio>
         </div>
     </div>
 
@@ -79,8 +78,8 @@
         </div>
     </div>
 
-    <!-- Hidden Ringtone Audio -->
-    <audio id="ringtone" loop>
+    <!-- Ringtone Audio Element -->
+    <audio id="ringtone" loop preload="auto">
         <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
     </audio>
 
@@ -113,6 +112,17 @@
                 alert("Please enter a valid ID.");
                 return;
             }
+
+            // CRITICAL FOR IPHONE: Play and immediately pause ringtone on user tap 
+            // to permanently unlock Safari's audio context sandbox.
+            ringtone.play().then(() => {
+                ringtone.pause();
+                ringtone.currentTime = 0;
+                console.log("iOS Audio Context unlocked successfully");
+            }).catch(err => {
+                console.log("Audio unlock interaction note:", err);
+            });
+
             socket.emit('register_id', myId);
             document.getElementById('my-id-display').innerText = myId;
             document.getElementById('register-section').classList.add('hidden');
@@ -122,7 +132,6 @@
         async function setupMedia() {
             try {
                 if (!localStream) {
-                    // iOS Safari requires explicit audio track requests
                     localStream = await navigator.mediaDevices.getUserMedia({ 
                         audio: {
                             echoCancellation: true,
@@ -137,7 +146,7 @@
                 });
             } catch (err) {
                 console.error("Microphone access denied:", err);
-                alert("Microphone access is required for calls. Please check your iPhone Safari settings.");
+                alert("Microphone access is required for calls. Check iPhone Safari settings.");
             }
         }
 
@@ -157,11 +166,10 @@
                 const remoteAudio = document.getElementById('remote-audio');
                 if (remoteAudio.srcObject !== event.streams[0]) {
                     remoteAudio.srcObject = event.streams[0];
-                    // Force play specifically for iOS Safari policy
                     remoteAudio.play().then(() => {
-                        console.log("Remote audio playing successfully");
+                        console.log("Remote audio stream playing");
                     }).catch(err => {
-                        console.log("iOS Safari audio play restriction caught:", err);
+                        console.log("Remote audio play error:", err);
                     });
                 }
             };
@@ -194,10 +202,9 @@
                 return;
             }
 
-            // CRITICAL for iOS: Fetch media INSIDE the user tap event handler before async signaling
             await setupMedia();
             if (!localStream) {
-                alert("Cannot start call: Microphone permission was blocked by iOS.");
+                alert("Cannot start call: Microphone permission missing.");
                 return;
             }
 
@@ -220,7 +227,8 @@
             pendingOffer = data.offer;
             targetId = data.caller_id;
 
-            ringtone.play().catch(err => console.log("Audio autoplay restricted:", err));
+            // This will now successfully play on iPhone because audio was unlocked at registration!
+            ringtone.play().catch(err => console.log("Ringtone play restricted:", err));
 
             document.getElementById('caller-id-display').innerText = data.caller_id;
             document.getElementById('incoming-overlay').classList.remove('hidden');
@@ -231,7 +239,6 @@
             ringtone.currentTime = 0;
             document.getElementById('incoming-overlay').classList.add('hidden');
 
-            // CRITICAL for iOS: Fetch media immediately inside the Accept button tap handler
             await setupMedia();
             await createPeerConnection(targetId);
 
@@ -262,16 +269,9 @@
         socket.on('call_answered', async (data) => {
             if (peerConnection) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                boxAudioUnlock();
                 await flushIceQueue();
             }
         });
-
-        // Extra helper to ensure iOS audio element wakes up if muted
-        function boxAudioUnlock() {
-            const remoteAudio = document.getElementById('remote-audio');
-            remoteAudio.play().catch(e => console.log("Unlock play error:", e));
-        }
 
         socket.on('ice_candidate', async (data) => {
             if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
@@ -307,7 +307,7 @@
                 peerConnection = null;
             }
             ringtone.pause();
-            ringtone.currentTime =.0;
+            ringtone.currentTime = 0;
             resetCallUI();
         }
 
