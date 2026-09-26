@@ -62,7 +62,8 @@
         <button id="hangup-btn" class="hidden" onclick="hangUpCall()">Hang Up</button>
 
         <div style="margin-top: 20px;">
-            <audio id="remote-audio" autoplay playsinline></audio>
+            <!-- playsinline and controls added to force iOS Safari to render and route audio properly -->
+            <audio id="remote-audio" autoplay playsinline controls style="width:100%;"></audio>
         </div>
     </div>
 
@@ -121,7 +122,7 @@
         async function setupMedia() {
             try {
                 if (!localStream) {
-                    // Explicit constraints to ensure mobile browsers activate and un-mute microphone tracks
+                    // iOS Safari requires explicit audio track requests
                     localStream = await navigator.mediaDevices.getUserMedia({ 
                         audio: {
                             echoCancellation: true,
@@ -131,13 +132,12 @@
                         video: false 
                     });
                 }
-                // Forcefully ensure all audio tracks are enabled and active
                 localStream.getAudioTracks().forEach(track => {
                     track.enabled = true;
                 });
             } catch (err) {
                 console.error("Microphone access denied:", err);
-                alert("Microphone access is required for calls.");
+                alert("Microphone access is required for calls. Please check your iPhone Safari settings.");
             }
         }
 
@@ -157,7 +157,12 @@
                 const remoteAudio = document.getElementById('remote-audio');
                 if (remoteAudio.srcObject !== event.streams[0]) {
                     remoteAudio.srcObject = event.streams[0];
-                    remoteAudio.play().catch(err => console.log("Audio play blocked/failed:", err));
+                    // Force play specifically for iOS Safari policy
+                    remoteAudio.play().then(() => {
+                        console.log("Remote audio playing successfully");
+                    }).catch(err => {
+                        console.log("iOS Safari audio play restriction caught:", err);
+                    });
                 }
             };
 
@@ -189,9 +194,10 @@
                 return;
             }
 
+            // CRITICAL for iOS: Fetch media INSIDE the user tap event handler before async signaling
             await setupMedia();
             if (!localStream) {
-                alert("Cannot start call: Microphone access is required.");
+                alert("Cannot start call: Microphone permission was blocked by iOS.");
                 return;
             }
 
@@ -225,6 +231,7 @@
             ringtone.currentTime = 0;
             document.getElementById('incoming-overlay').classList.add('hidden');
 
+            // CRITICAL for iOS: Fetch media immediately inside the Accept button tap handler
             await setupMedia();
             await createPeerConnection(targetId);
 
@@ -255,9 +262,16 @@
         socket.on('call_answered', async (data) => {
             if (peerConnection) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                boxAudioUnlock();
                 await flushIceQueue();
             }
         });
+
+        // Extra helper to ensure iOS audio element wakes up if muted
+        function boxAudioUnlock() {
+            const remoteAudio = document.getElementById('remote-audio');
+            remoteAudio.play().catch(e => console.log("Unlock play error:", e));
+        }
 
         socket.on('ice_candidate', async (data) => {
             if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
@@ -293,7 +307,7 @@
                 peerConnection = null;
             }
             ringtone.pause();
-            ringtone.currentTime = 0;
+            ringtone.currentTime =.0;
             resetCallUI();
         }
 
