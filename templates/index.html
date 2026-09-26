@@ -115,42 +115,6 @@
 
             myId = inputVal;
 
-            // Unlock audio for iOS Safari
-            ringtone.play().then(() => {
-                ringtone.pause();
-                ringtone.currentTime = 0;
-            }).catch(err => {
-                console.log("Audio unlock note:", err);
-            });
-
-            socket.emit('register_id', myId);
-        }
-
-        // Handle duplicate ID rejection from server
-        socket.on('registration_error', (data) => {
-            alert(data.error);
-            myId = ""; // Clear out failed ID
-            // Show registration screen again, hide dashboard
-            document.getElementById('register-section').classList.remove('hidden');
-            document.getElementById('call-section').classList.add('hidden');
-        });
-
-        // Successful registration acknowledged implicitly by moving to dashboard
-        // We can transition right after emitting or let a success event do it. 
-        // To make it snappy, we transition right away, but if an error comes back, it bounces back.
-        // Let's hook the UI transition inside registerID():
-        // Actually, let's update registerID to transition, and if error happens, bounce back:
-        
-        // (Wait, let's refine the flow so it smoothly transitions on success or bounces back on error)
-        function registerID() {
-            const inputVal = document.getElementById('id-input').value.trim();
-            if (!inputVal) {
-                alert("Please enter a valid ID.");
-                return;
-            }
-
-            myId = inputVal;
-
             ringtone.play().then(() => {
                 ringtone.pause();
                 ringtone.currentTime = 0;
@@ -158,7 +122,6 @@
 
             socket.emit('register_id', myId);
 
-            // Temporarily show dashboard; if server rejects, registration_error will bounce us back
             document.getElementById('my-id-display').innerText = myId;
             document.getElementById('register-section').classList.add('hidden');
             document.getElementById('call-section').classList.remove('hidden');
@@ -175,17 +138,11 @@
             try {
                 if (!localStream) {
                     localStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: {
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true
-                        }, 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
                         video: false 
                     });
                 }
-                localStream.getAudioTracks().forEach(track => {
-                    track.enabled = true;
-                });
+                localStream.getAudioTracks().forEach(track => { track.enabled = true; });
             } catch (err) {
                 console.error("Microphone access denied:", err);
                 alert("Microphone access is required for calls.");
@@ -265,7 +222,7 @@
             pendingOffer = data.offer;
             targetId = data.caller_id;
 
-            ringtone.play().catch(err => console.log("Ringtone play restricted:", err));
+            ringtone.play().catch(err => {});
 
             document.getElementById('caller-id-display').innerText = data.caller_id;
             document.getElementById('incoming-overlay').classList.remove('hidden');
