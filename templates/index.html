@@ -4,26 +4,74 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Browser ID Calling</title>
+
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f9; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        input, button { padding: 12px; margin: 6px 0; font-size: 16px; width: 100%; box-sizing: border-box; }
-        button { cursor: pointer; background: #007BFF; color: white; border: none; border-radius: 4px; font-weight: bold; }
-        button:hover { background: #0056b3; }
-        #hangup-btn { background: #dc3545; }
-        #hangup-btn:hover { background: #bd2130; }
-        .hidden { display: none !important; }
-        .status { font-weight: bold; color: green; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f4f4f9;
+            color: #333;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        input, button {
+            padding: 12px;
+            margin: 6px 0;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            cursor: pointer;
+            background: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        #hangup-btn {
+            background: #dc3545;
+        }
+
+        #hangup-btn:hover {
+            background: #bd2130;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .status {
+            font-weight: bold;
+            color: green;
+        }
 
         #incoming-overlay {
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: rgba(0, 0, 0, 0.85);
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 9999;
         }
+
         .incoming-box {
             background: white;
             padding: 30px;
@@ -33,14 +81,38 @@
             max-width: 400px;
             box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
-        .incoming-box h2 { color: #28a745; margin-top: 0; }
-        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
-        .btn-accept { background: #28a745 !important; flex: 1; }
-        .btn-accept:hover { background: #218838 !important; }
-        .btn-decline { background: #dc3545 !important; flex: 1; }
-        .btn-decline:hover { background: #bd2130 !important; }
+
+        .incoming-box h2 {
+            color: #28a745;
+            margin-top: 0;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-accept {
+            background: #28a745 !important;
+            flex: 1;
+        }
+
+        .btn-accept:hover {
+            background: #218838 !important;
+        }
+
+        .btn-decline {
+            background: #dc3545 !important;
+            flex: 1;
+        }
+
+        .btn-decline:hover {
+            background: #bd2130 !important;
+        }
     </style>
 </head>
+
 <body>
 
     <h1>Browser ID Calling App</h1>
@@ -48,45 +120,118 @@
     <!-- Registration Section -->
     <div id="register-section" class="card">
         <h3>1. Enter Your ID</h3>
-        <input type="text" id="id-input" placeholder="e.g. 456">
-        <button onclick="registerID()">Register ID & Unlock Audio</button>
+
+        <input
+            type="text"
+            id="id-input"
+            placeholder="e.g. 456"
+        >
+
+        <button onclick="registerID()">
+            Register ID
+        </button>
     </div>
+
 
     <!-- Call Dashboard Section -->
     <div id="call-section" class="card hidden">
+
         <h3>2. Call Dashboard</h3>
-        <p>Your ID: <b id="my-id-display"></b> <span class="status">● Online</span></p>
-        
-        <input type="text" id="target-id-input" placeholder="Enter recipient's ID (e.g. 121)">
-        <button id="start-call-btn" onclick="startCall()">Start Call</button>
-        <button id="hangup-btn" class="hidden" onclick="hangUpCall()">Hang Up</button>
+
+        <p>
+            Your ID:
+            <b id="my-id-display"></b>
+            <span class="status">● Online</span>
+        </p>
+
+        <input
+            type="text"
+            id="target-id-input"
+            placeholder="Enter recipient's ID (e.g. 121)"
+        >
+
+        <button
+            id="start-call-btn"
+            onclick="startCall()"
+        >
+            Start Call
+        </button>
+
+        <button
+            id="hangup-btn"
+            class="hidden"
+            onclick="hangUpCall()"
+        >
+            Hang Up
+        </button>
 
         <div style="margin-top: 20px;">
-            <audio id="remote-audio" autoplay playsinline></audio>
+            <audio
+                id="remote-audio"
+                autoplay
+                playsinline
+                controls
+                style="width:100%;"
+            ></audio>
         </div>
+
     </div>
 
-    <!-- Prominent On-Screen Incoming Call Overlay Modal -->
+
+    <!-- Incoming Call Overlay -->
     <div id="incoming-overlay" class="hidden">
+
         <div class="incoming-box">
+
             <h2>Incoming Call!</h2>
-            <p>From ID: <b id="caller-id-display" style="font-size: 20px;"></b></p>
+
+            <p>
+                From ID:
+                <b
+                    id="caller-id-display"
+                    style="font-size: 20px;"
+                ></b>
+            </p>
+
             <div class="btn-group">
-                <button class="btn-accept" onclick="acceptCall()">Accept</button>
-                <button class="btn-decline" onclick="declineCall()">Decline</button>
+
+                <button
+                    class="btn-accept"
+                    onclick="acceptCall()"
+                >
+                    Accept
+                </button>
+
+                <button
+                    class="btn-decline"
+                    onclick="declineCall()"
+                >
+                    Decline
+                </button>
+
             </div>
+
         </div>
+
     </div>
 
-    <!-- Ringtone Audio Element -->
-    <audio id="ringtone" loop preload="auto">
-        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+
+    <!-- Hidden Ringtone -->
+    <audio id="ringtone" loop>
+        <source
+            src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+            type="audio/mpeg"
+        >
     </audio>
 
-    <!-- Socket.IO Client Library -->
+
+    <!-- Socket.IO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+
     <script>
+
         const socket = io();
+
         let myId = "";
         let targetId = "";
         let pendingOffer = null;
@@ -95,224 +240,709 @@
         let iceCandidateQueue = [];
 
         const iceServers = {
-            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+            iceServers: [
+                {
+                    urls: "stun:stun.l.google.com:19302"
+                }
+            ]
         };
 
         const ringtone = document.getElementById('ringtone');
 
+
+        /*
+         * SOCKET CONNECTION
+         */
+
         socket.on('connect', () => {
+
+            // If the page reconnects, automatically
+            // try to register the same ID again.
             if (myId) {
                 socket.emit('register_id', myId);
             }
+
         });
+
+
+        /*
+         * REGISTRATION
+         */
 
         function registerID() {
-            const inputVal = document.getElementById('id-input').value.trim();
-            if (!inputVal) {
+
+            const enteredId =
+                document.getElementById('id-input').value.trim();
+
+            if (!enteredId) {
+
                 alert("Please enter a valid ID.");
+
                 return;
             }
 
-            myId = inputVal;
+            // Don't immediately switch to dashboard.
+            // We wait for the server to confirm that
+            // the ID is available.
 
-            ringtone.play().then(() => {
-                ringtone.pause();
-                ringtone.currentTime = 0;
-            }).catch(err => {});
+            socket.emit('register_id', enteredId);
 
-            socket.emit('register_id', myId);
-
-            document.getElementById('my-id-display').innerText = myId;
-            document.getElementById('register-section').classList.add('hidden');
-            document.getElementById('call-section').classList.remove('hidden');
         }
 
-        socket.on('registration_error', (data) => {
-            alert(data.error);
-            myId = "";
-            document.getElementById('register-section').classList.remove('hidden');
-            document.getElementById('call-section').classList.add('hidden');
+
+        /*
+         * REGISTRATION SUCCESS
+         */
+
+        socket.on('registration_success', () => {
+
+            myId =
+                document.getElementById('id-input').value.trim();
+
+            document.getElementById('my-id-display').innerText =
+                myId;
+
+            document
+                .getElementById('register-section')
+                .classList.add('hidden');
+
+            document
+                .getElementById('call-section')
+                .classList.remove('hidden');
+
         });
+
+
+        /*
+         * REGISTRATION FAILED
+         */
+
+        socket.on('registration_failed', (data) => {
+
+            alert(data.error);
+
+            // Stay on registration screen.
+            document
+                .getElementById('register-section')
+                .classList.remove('hidden');
+
+            document
+                .getElementById('call-section')
+                .classList.add('hidden');
+
+        });
+
+
+        /*
+         * MEDIA
+         */
 
         async function setupMedia() {
+
             try {
+
                 if (!localStream) {
-                    localStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
-                        video: false 
-                    });
+
+                    localStream =
+                        await navigator.mediaDevices.getUserMedia({
+
+                            audio: {
+                                echoCancellation: true,
+                                noiseSuppression: true,
+                                autoGainControl: true
+                            },
+
+                            video: false
+
+                        });
+
                 }
-                localStream.getAudioTracks().forEach(track => { track.enabled = true; });
-            } catch (err) {
-                console.error("Microphone access denied:", err);
-                alert("Microphone access is required for calls.");
+
+                localStream
+                    .getAudioTracks()
+                    .forEach(track => {
+
+                        track.enabled = true;
+
+                    });
+
             }
+
+            catch (err) {
+
+                console.error(
+                    "Microphone access denied:",
+                    err
+                );
+
+                alert(
+                    "Microphone access is required for calls. Please check your iPhone Safari settings."
+                );
+
+            }
+
         }
+
+
+        /*
+         * PEER CONNECTION
+         */
 
         async function createPeerConnection(receiverId) {
-            if (peerConnection) return;
-            
-            peerConnection = new RTCPeerConnection(iceServers);
+
+            if (peerConnection)
+                return;
+
+            peerConnection =
+                new RTCPeerConnection(iceServers);
+
             iceCandidateQueue = [];
+
 
             if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
-                });
+
+                localStream
+                    .getTracks()
+                    .forEach(track => {
+
+                        peerConnection.addTrack(
+                            track,
+                            localStream
+                        );
+
+                    });
+
             }
+
 
             peerConnection.ontrack = (event) => {
-                const remoteAudio = document.getElementById('remote-audio');
-                if (remoteAudio.srcObject !== event.streams[0]) {
-                    remoteAudio.srcObject = event.streams[0];
-                    remoteAudio.play().catch(err => console.log("Audio play error:", err));
+
+                const remoteAudio =
+                    document.getElementById('remote-audio');
+
+                if (
+                    remoteAudio.srcObject !==
+                    event.streams[0]
+                ) {
+
+                    remoteAudio.srcObject =
+                        event.streams[0];
+
+                    remoteAudio
+                        .play()
+                        .then(() => {
+
+                            console.log(
+                                "Remote audio playing successfully"
+                            );
+
+                        })
+                        .catch(err => {
+
+                            console.log(
+                                "iOS Safari audio play restriction caught:",
+                                err
+                            );
+
+                        });
+
                 }
+
             };
 
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.emit('ice_candidate', {
-                        target_id: receiverId,
-                        candidate: event.candidate
-                    });
-                }
-            };
+
+            peerConnection.onicecandidate =
+                (event) => {
+
+                    if (event.candidate) {
+
+                        socket.emit(
+                            'ice_candidate',
+                            {
+                                target_id: receiverId,
+                                candidate: event.candidate
+                            }
+                        );
+
+                    }
+
+                };
+
         }
+
+
+        /*
+         * ICE QUEUE
+         */
 
         async function flushIceQueue() {
-            while (iceCandidateQueue.length > 0) {
-                const candidate = iceCandidateQueue.shift();
+
+            while (
+                iceCandidateQueue.length > 0
+            ) {
+
+                const candidate =
+                    iceCandidateQueue.shift();
+
                 try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                } catch (e) {
-                    console.error("Error adding queued ICE candidate", e);
+
+                    await peerConnection
+                        .addIceCandidate(
+                            new RTCIceCandidate(candidate)
+                        );
+
                 }
+
+                catch (e) {
+
+                    console.error(
+                        "Error adding queued ICE candidate",
+                        e
+                    );
+
+                }
+
             }
+
         }
+
+
+        /*
+         * START CALL
+         */
 
         async function startCall() {
-            targetId = document.getElementById('target-id-input').value.trim();
+
+            targetId =
+                document
+                    .getElementById('target-id-input')
+                    .value
+                    .trim();
+
+
             if (!targetId) {
-                alert("Enter target ID to call.");
+
+                alert(
+                    "Enter target ID to call."
+                );
+
                 return;
+
             }
 
+
             await setupMedia();
+
+
             if (!localStream) {
-                alert("Cannot start call: Microphone permission missing.");
+
+                alert(
+                    "Cannot start call: Microphone permission was blocked by iOS."
+                );
+
                 return;
+
             }
+
 
             await createPeerConnection(targetId);
 
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
 
-            socket.emit('call_user', {
-                target_id: targetId,
-                caller_id: myId,
-                offer: offer
-            });
+            const offer =
+                await peerConnection.createOffer();
 
-            document.getElementById('start-call-btn').classList.add('hidden');
-            document.getElementById('hangup-btn').classList.remove('hidden');
+
+            await peerConnection
+                .setLocalDescription(offer);
+
+
+            socket.emit(
+                'call_user',
+                {
+                    target_id: targetId,
+                    caller_id: myId,
+                    offer: offer
+                }
+            );
+
+
+            document
+                .getElementById('start-call-btn')
+                .classList.add('hidden');
+
+
+            document
+                .getElementById('hangup-btn')
+                .classList.remove('hidden');
+
         }
 
-        socket.on('incoming_call', async (data) => {
-            pendingOffer = data.offer;
-            targetId = data.caller_id;
 
-            ringtone.play().catch(err => {});
+        /*
+         * INCOMING CALL
+         */
 
-            document.getElementById('caller-id-display').innerText = data.caller_id;
-            document.getElementById('incoming-overlay').classList.remove('hidden');
-        });
+        socket.on(
+            'incoming_call',
+            async (data) => {
+
+                pendingOffer =
+                    data.offer;
+
+                targetId =
+                    data.caller_id;
+
+
+                ringtone
+                    .play()
+                    .catch(
+                        err =>
+                            console.log(
+                                "Audio autoplay restricted:",
+                                err
+                            )
+                    );
+
+
+                document
+                    .getElementById(
+                        'caller-id-display'
+                    )
+                    .innerText =
+                    data.caller_id;
+
+
+                document
+                    .getElementById(
+                        'incoming-overlay'
+                    )
+                    .classList
+                    .remove('hidden');
+
+            }
+        );
+
+
+        /*
+         * ACCEPT CALL
+         */
 
         async function acceptCall() {
+
             ringtone.pause();
+
             ringtone.currentTime = 0;
-            document.getElementById('incoming-overlay').classList.add('hidden');
+
+
+            document
+                .getElementById(
+                    'incoming-overlay'
+                )
+                .classList
+                .add('hidden');
+
 
             await setupMedia();
-            await createPeerConnection(targetId);
 
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(pendingOffer));
+
+            await createPeerConnection(
+                targetId
+            );
+
+
+            await peerConnection
+                .setRemoteDescription(
+                    new RTCSessionDescription(
+                        pendingOffer
+                    )
+                );
+
+
             await flushIceQueue();
 
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
 
-            socket.emit('make_answer', {
-                caller_id: targetId,
-                answer: answer
-            });
+            const answer =
+                await peerConnection.createAnswer();
 
-            document.getElementById('start-call-btn').classList.add('hidden');
-            document.getElementById('hangup-btn').classList.remove('hidden');
+
+            await peerConnection
+                .setLocalDescription(answer);
+
+
+            socket.emit(
+                'make_answer',
+                {
+                    caller_id: targetId,
+                    answer: answer
+                }
+            );
+
+
+            document
+                .getElementById(
+                    'start-call-btn'
+                )
+                .classList
+                .add('hidden');
+
+
+            document
+                .getElementById(
+                    'hangup-btn'
+                )
+                .classList
+                .remove('hidden');
+
         }
+
+
+        /*
+         * DECLINE CALL
+         */
 
         function declineCall() {
+
             ringtone.pause();
+
             ringtone.currentTime = 0;
-            document.getElementById('incoming-overlay').classList.add('hidden');
-            socket.emit('hang_up', { target_id: targetId });
+
+
+            document
+                .getElementById(
+                    'incoming-overlay'
+                )
+                .classList
+                .add('hidden');
+
+
+            socket.emit(
+                'hang_up',
+                {
+                    target_id: targetId
+                }
+            );
+
+
             targetId = "";
             pendingOffer = null;
+
         }
 
-        socket.on('call_answered', async (data) => {
-            if (peerConnection) {
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                await flushIceQueue();
-            }
-        });
 
-        socket.on('ice_candidate', async (data) => {
-            if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
-                try {
-                    await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-                } catch (e) {
-                    console.error("Error adding received ICE candidate", e);
+        /*
+         * CALL ANSWERED
+         */
+
+        socket.on(
+            'call_answered',
+            async (data) => {
+
+                if (peerConnection) {
+
+                    await peerConnection
+                        .setRemoteDescription(
+                            new RTCSessionDescription(
+                                data.answer
+                            )
+                        );
+
+
+                    boxAudioUnlock();
+
+                    await flushIceQueue();
+
                 }
-            } else {
-                iceCandidateQueue.push(data.candidate);
+
             }
-        });
+        );
 
-        socket.on('call_failed', (data) => {
-            alert(data.error);
-            terminateCallLocally();
-        });
 
-        socket.on('call_ended', () => {
-            terminateCallLocally();
-        });
+        /*
+         * AUDIO UNLOCK
+         */
+
+        function boxAudioUnlock() {
+
+            const remoteAudio =
+                document.getElementById(
+                    'remote-audio'
+                );
+
+            remoteAudio
+                .play()
+                .catch(
+                    e =>
+                        console.log(
+                            "Unlock play error:",
+                            e
+                        )
+                );
+
+        }
+
+
+        /*
+         * ICE CANDIDATE
+         */
+
+        socket.on(
+            'ice_candidate',
+            async (data) => {
+
+                if (
+                    peerConnection &&
+                    peerConnection.remoteDescription &&
+                    peerConnection.remoteDescription.type
+                ) {
+
+                    try {
+
+                        await peerConnection
+                            .addIceCandidate(
+                                new RTCIceCandidate(
+                                    data.candidate
+                                )
+                            );
+
+                    }
+
+                    catch (e) {
+
+                        console.error(
+                            "Error adding received ICE candidate",
+                            e
+                        );
+
+                    }
+
+                }
+
+                else {
+
+                    iceCandidateQueue
+                        .push(data.candidate);
+
+                }
+
+            }
+        );
+
+
+        /*
+         * CALL FAILED
+         */
+
+        socket.on(
+            'call_failed',
+            (data) => {
+
+                alert(data.error);
+
+                terminateCallLocally();
+
+            }
+        );
+
+
+        /*
+         * CALL ENDED
+         */
+
+        socket.on(
+            'call_ended',
+            () => {
+
+                terminateCallLocally();
+
+            }
+        );
+
+
+        /*
+         * HANG UP
+         */
 
         function hangUpCall() {
+
             if (targetId) {
-                socket.emit('hang_up', { target_id: targetId });
+
+                socket.emit(
+                    'hang_up',
+                    {
+                        target_id: targetId
+                    }
+                );
+
             }
+
             terminateCallLocally();
+
         }
+
+
+        /*
+         * TERMINATE CALL LOCALLY
+         */
 
         function terminateCallLocally() {
+
             if (peerConnection) {
+
                 peerConnection.close();
+
                 peerConnection = null;
+
             }
+
+
             ringtone.pause();
+
             ringtone.currentTime = 0;
+
             resetCallUI();
+
         }
 
+
+        /*
+         * RESET CALL UI
+         */
+
         function resetCallUI() {
-            document.getElementById('start-call-btn').classList.remove('hidden');
-            document.getElementById('hangup-btn').classList.add('hidden');
-            document.getElementById('incoming-overlay').classList.add('hidden');
+
+            document
+                .getElementById(
+                    'start-call-btn'
+                )
+                .classList
+                .remove('hidden');
+
+
+            document
+                .getElementById(
+                    'hangup-btn'
+                )
+                .classList
+                .add('hidden');
+
+
+            document
+                .getElementById(
+                    'incoming-overlay'
+                )
+                .classList
+                .add('hidden');
+
+
             targetId = "";
+
             pendingOffer = null;
+
             iceCandidateQueue = [];
+
         }
+
     </script>
+
 </body>
 </html>
