@@ -107,27 +107,69 @@
         });
 
         function registerID() {
-            myId = document.getElementById('id-input').value.trim();
-            if (!myId) {
+            const inputVal = document.getElementById('id-input').value.trim();
+            if (!inputVal) {
                 alert("Please enter a valid ID.");
                 return;
             }
 
-            // CRITICAL FOR IPHONE: Play and immediately pause ringtone on user tap 
-            // to permanently unlock Safari's audio context sandbox.
+            myId = inputVal;
+
+            // Unlock audio for iOS Safari
             ringtone.play().then(() => {
                 ringtone.pause();
                 ringtone.currentTime = 0;
-                console.log("iOS Audio Context unlocked successfully");
             }).catch(err => {
-                console.log("Audio unlock interaction note:", err);
+                console.log("Audio unlock note:", err);
             });
 
             socket.emit('register_id', myId);
+        }
+
+        // Handle duplicate ID rejection from server
+        socket.on('registration_error', (data) => {
+            alert(data.error);
+            myId = ""; // Clear out failed ID
+            // Show registration screen again, hide dashboard
+            document.getElementById('register-section').classList.remove('hidden');
+            document.getElementById('call-section').classList.add('hidden');
+        });
+
+        // Successful registration acknowledged implicitly by moving to dashboard
+        // We can transition right after emitting or let a success event do it. 
+        // To make it snappy, we transition right away, but if an error comes back, it bounces back.
+        // Let's hook the UI transition inside registerID():
+        // Actually, let's update registerID to transition, and if error happens, bounce back:
+        
+        // (Wait, let's refine the flow so it smoothly transitions on success or bounces back on error)
+        function registerID() {
+            const inputVal = document.getElementById('id-input').value.trim();
+            if (!inputVal) {
+                alert("Please enter a valid ID.");
+                return;
+            }
+
+            myId = inputVal;
+
+            ringtone.play().then(() => {
+                ringtone.pause();
+                ringtone.currentTime = 0;
+            }).catch(err => {});
+
+            socket.emit('register_id', myId);
+
+            // Temporarily show dashboard; if server rejects, registration_error will bounce us back
             document.getElementById('my-id-display').innerText = myId;
             document.getElementById('register-section').classList.add('hidden');
             document.getElementById('call-section').classList.remove('hidden');
         }
+
+        socket.on('registration_error', (data) => {
+            alert(data.error);
+            myId = "";
+            document.getElementById('register-section').classList.remove('hidden');
+            document.getElementById('call-section').classList.add('hidden');
+        });
 
         async function setupMedia() {
             try {
@@ -146,7 +188,7 @@
                 });
             } catch (err) {
                 console.error("Microphone access denied:", err);
-                alert("Microphone access is required for calls. Check iPhone Safari settings.");
+                alert("Microphone access is required for calls.");
             }
         }
 
@@ -166,11 +208,7 @@
                 const remoteAudio = document.getElementById('remote-audio');
                 if (remoteAudio.srcObject !== event.streams[0]) {
                     remoteAudio.srcObject = event.streams[0];
-                    remoteAudio.play().then(() => {
-                        console.log("Remote audio stream playing");
-                    }).catch(err => {
-                        console.log("Remote audio play error:", err);
-                    });
+                    remoteAudio.play().catch(err => console.log("Audio play error:", err));
                 }
             };
 
@@ -227,7 +265,6 @@
             pendingOffer = data.offer;
             targetId = data.caller_id;
 
-            // This will now successfully play on iPhone because audio was unlocked at registration!
             ringtone.play().catch(err => console.log("Ringtone play restricted:", err));
 
             document.getElementById('caller-id-display').innerText = data.caller_id;
