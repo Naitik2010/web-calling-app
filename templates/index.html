@@ -5,18 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Browser ID Calling</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f9; color: #333; }
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f9; color: #333; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        input, button { padding: 10px; margin: 5px 0; font-size: 16px; }
-        button { cursor: pointer; background: #007BFF; color: white; border: none; border-radius: 4px; }
+        input, button { padding: 12px; margin: 6px 0; font-size: 16px; width: 100%; box-sizing: border-box; }
+        button { cursor: pointer; background: #007BFF; color: white; border: none; border-radius: 4px; font-weight: bold; }
         button:hover { background: #0056b3; }
         #hangup-btn { background: #dc3545; }
         #hangup-btn:hover { background: #bd2130; }
-        #answer-btn { background: #28a745; font-size: 18px; padding: 12px 20px; }
-        #answer-btn:hover { background: #218838; }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
         .status { font-weight: bold; color: green; }
-        #incoming-container { background: #e8f5e9; border: 2px dashed #28a745; padding: 15px; border-radius: 6px; margin-top: 15px; }
+
+        /* Fullscreen or Prominent Incoming Call Overlay */
+        #incoming-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .incoming-box {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            width: 85%;
+            max-width: 400px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+        .incoming-box h2 { color: #28a745; margin-top: 0; }
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-accept { background: #28a745 !important; flex: 1; }
+        .btn-accept:hover { background: #218838 !important; }
+        .btn-decline { background: #dc3545 !important; flex: 1; }
+        .btn-decline:hover { background: #bd2130 !important; }
     </style>
 </head>
 <body>
@@ -27,7 +50,6 @@
     <div id="register-section" class="card">
         <h3>1. Enter Your ID</h3>
         <input type="text" id="id-input" placeholder="e.g. 456">
-        <br>
         <button onclick="registerID()">Register ID</button>
     </div>
 
@@ -37,19 +59,23 @@
         <p>Your ID: <b id="my-id-display"></b> <span class="status">● Online</span></p>
         
         <input type="text" id="target-id-input" placeholder="Enter recipient's ID (e.g. 121)">
-        <br>
         <button id="start-call-btn" onclick="startCall()">Start Call</button>
         <button id="hangup-btn" class="hidden" onclick="hangUpCall()">Hang Up</button>
 
-        <!-- Incoming Call UI Banner -->
-        <div id="incoming-container" class="hidden">
-            <p>Incoming call from ID: <b id="caller-id-display"></b></p>
-            <button id="answer-btn" onclick="acceptCall()">Accept Call</button>
-            <button id="hangup-btn-incoming" onclick="declineCall()" style="background: #dc3545;">Decline</button>
-        </div>
-
         <div style="margin-top: 20px;">
             <audio id="remote-audio" autoplay></audio>
+        </div>
+    </div>
+
+    <!-- Prominent On-Screen Incoming Call Overlay Modal -->
+    <div id="incoming-overlay" class="hidden">
+        <div class="incoming-box">
+            <h2>Incoming Call!</h2>
+            <p>From ID: <b id="caller-id-display" style="font-size: 20px;"></b></p>
+            <div class="btn-group">
+                <button class="btn-accept" onclick="acceptCall()">Accept</button>
+                <button class="btn-decline" onclick="declineCall()">Decline</button>
+            </div>
         </div>
     </div>
 
@@ -91,10 +117,6 @@
             document.getElementById('my-id-display').innerText = myId;
             document.getElementById('register-section').classList.add('hidden');
             document.getElementById('call-section').classList.remove('hidden');
-
-            if (Notification.permission !== "granted") {
-                Notification.requestPermission();
-            }
         }
 
         async function setupMedia() {
@@ -179,20 +201,15 @@
 
             ringtone.play().catch(err => console.log("Audio autoplay restricted:", err));
 
-            if (Notification.permission === "granted") {
-                new Notification("Incoming Call", { body: `Call from ID: ${data.caller_id}` });
-            }
-
-            // Show interactive on-screen call banner instead of blockable confirm()
+            // Force display of big on-screen accept modal
             document.getElementById('caller-id-display').innerText = data.caller_id;
-            document.getElementById('incoming-container').classList.remove('hidden');
-            document.getElementById('start-call-btn').classList.add('hidden');
+            document.getElementById('incoming-overlay').classList.remove('hidden');
         });
 
         async function acceptCall() {
             ringtone.pause();
             ringtone.currentTime = 0;
-            document.getElementById('incoming-container').classList.add('hidden');
+            document.getElementById('incoming-overlay').classList.add('hidden');
 
             await setupMedia();
             await createPeerConnection(targetId);
@@ -208,16 +225,17 @@
                 answer: answer
             });
 
+            document.getElementById('start-call-btn').classList.add('hidden');
             document.getElementById('hangup-btn').classList.remove('hidden');
         }
 
         function declineCall() {
             ringtone.pause();
             ringtone.currentTime = 0;
-            document.getElementById('incoming-container').classList.add('hidden');
-            document.getElementById('start-call-btn').classList.remove('hidden');
+            document.getElementById('incoming-overlay').classList.add('hidden');
             socket.emit('hang_up', { target_id: targetId });
             targetId = "";
+            pendingOffer = null;
         }
 
         socket.on('call_answered', async (data) => {
@@ -268,7 +286,7 @@
         function resetCallUI() {
             document.getElementById('start-call-btn').classList.remove('hidden');
             document.getElementById('hangup-btn').classList.add('hidden');
-            document.getElementById('incoming-container').classList.add('hidden');
+            document.getElementById('incoming-overlay').classList.add('hidden');
             targetId = "";
             pendingOffer = null;
             iceCandidateQueue = [];
